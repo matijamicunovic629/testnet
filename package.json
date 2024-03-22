@@ -1,0 +1,22 @@
+{
+  "name": "defi-os-test",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@uniswap/sdk": "^3.0.3",
+    "@uniswap/v2-sdk": "^4.3.0",
+    "crypto-js": "^4.2.0",
+    "ethers": "^5.7.2",
+    "viem": "^2.8.18",
+    "web3": "^4.6.0"
+  }
+}
