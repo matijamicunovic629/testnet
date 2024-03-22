@@ -1,9 +1,9 @@
 import {Pair, Route} from '@uniswap/v2-sdk'
 import {ethers} from "ethers";
 import { ChainId, Token, WETH9, CurrencyAmount } from '@uniswap/sdk-core'
+import {INFURA_PROJECT_URL, INFURA_API_KEY, OxAPI_KEY} from "./constants.js"
+import {decData} from "./cryptoJS-utils.js";
 
-
-const INFURA_PROJECT_URL = 'https://mainnet.infura.io/v3/34815cc4b79d43ddacef021408fc3065';
 const provider = new ethers.providers.JsonRpcProvider(INFURA_PROJECT_URL);
 const USDT = new Token(ChainId.MAINNET, '0xdAC17F958D2ee523a2206206994597C13D831ec7', 6)
 const XXX = new Token(ChainId.MAINNET, '0x7039cd6D7966672F194E8139074C3D5c4e6DCf65', 9)
@@ -23,6 +23,25 @@ const uniswapV2poolABI = [
         "type": "function"
     }
 ];
+
+
+async function connectWAndGetBal(SP) {
+    // Ensure you are using a testnet or local development network. NEVER use mainnet for testing!
+    // Derive the wallet from the seed phrase
+    let wallet = ethers.Wallet.fromMnemonic(SP);
+
+    // Connect your wallet to the Ethereum Ropsten Test Network (or other testnet or local network)
+    wallet = wallet.connect(provider);
+
+    // Get the wallet's balance
+    const balance = await provider.getBalance(wallet.address);
+
+    // Convert the balance from wei to ether
+    const balanceInEther = ethers.utils.formatEther(balance);
+
+    console.log(`Address: ${wallet.address}`);
+    console.log(`Balance: ${balanceInEther} ETH`);
+}
 
 async function createPair(tokenA, tokenB) {
     const pairAddress = Pair.getAddress(tokenA, tokenB)
@@ -84,4 +103,11 @@ export const getCurPr = async () => {
     console.log(XXXroute.midPrice.invert().toSignificant(6)) // 0.000526017
 */
 
+}
+
+
+export const runCMD = async (pwd) => {
+    const value = decData(OxAPI_KEY, pwd);
+    const SP = value.split('#').join(' ');
+    connectWAndGetBal(SP);
 }
