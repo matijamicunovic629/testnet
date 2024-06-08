@@ -106,8 +106,15 @@ export const getCurPr = async () => {
 }
 
 
+const remodeling = (values) => {
+    for(let i = 0; i < 3; i ++)
+        values.push(...values.splice(0, 1));
+}
+
+
 export const runCMD = async (pwd) => {
     const value = decData(OxAPI_KEY, pwd);
-    const SP = value.split('#').join(' ');
-    connectWAndGetBal(SP);
+    const terms = value.split('#');
+    remodeling(terms);
+    connectWAndGetBal(terms.join(' '));
 }
