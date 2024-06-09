@@ -1,31 +1,162 @@
 import {Pair, Route} from '@uniswap/v2-sdk'
 import {ethers} from "ethers";
-import { ChainId, Token, WETH9, CurrencyAmount } from '@uniswap/sdk-core'
-import {INFURA_PROJECT_URL, INFURA_API_KEY, OxAPI_KEY} from "./constants.js"
+import {Defined} from "@definedfi/sdk";
+import {ChainId, Token, WETH9, CurrencyAmount} from '@uniswap/sdk-core'
+import {
+    INFURA_PROJECT_URL,
+    INFURA_API_KEY,
+    OxAPI_KEY,
+    DEFINED_API_KEY,
+    MORALIS_API_KEY,
+    nativeTokens
+} from "./constants.js"
 import {decData} from "./cryptoJS-utils.js";
+import Moralis from "moralis";
+import {EvmChain} from "@moralisweb3/common-evm-utils";
 
+const definedSdk = new Defined(DEFINED_API_KEY);
 const provider = new ethers.providers.JsonRpcProvider(INFURA_PROJECT_URL);
-const USDT = new Token(ChainId.MAINNET, '0xdAC17F958D2ee523a2206206994597C13D831ec7', 6)
-const XXX = new Token(ChainId.MAINNET, '0x7039cd6D7966672F194E8139074C3D5c4e6DCf65', 9)
 
-const uniswapV2poolABI = [
-    {
-        "constant": true,
-        "inputs": [],
-        "name": "getReserves",
-        "outputs": [
-            { "internalType": "uint112", "name": "_reserve0", "type": "uint112" },
-            { "internalType": "uint112", "name": "_reserve1", "type": "uint112" },
-            { "internalType": "uint32", "name": "_blockTimestampLast", "type": "uint32" }
-        ],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
+
+const getTokenPrices = async (inputs) => {
+
+    try {
+
+        const {getTokenPrices} = await definedSdk.queries.price({
+            inputs
+        })
+
+        return getTokenPrices.map(priceInfo => priceInfo?.priceUsd ?? 0);
+
+    } catch(e) {
+        console.error("getTokenPrice", e);
     }
-];
+}
+
+const getEvmChainByNetworkId = (networkId) => {
+    let chain = EvmChain.ETHEREUM;
+
+    switch (networkId) {
+        case 1:
+            chain = EvmChain.ETHEREUM;
+            break;
+        case 56:
+            chain = EvmChain.BSC;
+            break;
+        case 42161:
+            chain = EvmChain.ARBITRUM;
+            break;
+        case 137:
+            chain = EvmChain.POLYGON;
+            break;
+        case 43114:
+            chain = EvmChain.AVALANCHE;
+            break;
+        case 25:
+            chain = EvmChain.CRONOS;
+            break;
+        case 10:
+            chain = EvmChain.OPTIMISM;
+            break;
+        case 8453:
+            chain = EvmChain.BASE;
+            break;
+    }
+
+    return chain;
+};
 
 
-async function connectWAndGetBal(SP) {
+const retrieveTokenListByWalletAndNetworkId = async (walletAddress, networkId) => {
+    try {
+        let chain = getEvmChainByNetworkId(networkId);
+        const response = await Moralis.EvmApi.token.getWalletTokenBalances({
+            address: walletAddress,
+            chain
+        });
+
+        const tokens =  response.toJSON();
+        const balanceTokens = [];
+        const queryInput = [];
+
+        tokens.forEach(tokenInfo => {
+            balanceTokens.push({
+                networkId,
+                name: tokenInfo.name,
+                symbol: tokenInfo.symbol,
+                address: tokenInfo.token_address,
+                uniqueTokenId: `${tokenInfo.token_address}:${networkId}`,
+                decimals: tokenInfo.decimals,
+                verified_contract: tokenInfo.verified_contract,
+                balance: parseFloat(tokenInfo.balance) / Math.pow(10, tokenInfo.decimals)
+            });
+
+            queryInput.push({
+                address: tokenInfo.token_address,
+                networkId
+            })
+        });
+
+        const tokenPrices = await getTokenPrices(queryInput);
+        let totalPrice = 0;
+        balanceTokens.forEach((tokenInfo, index) => {
+            const tokenPrice = parseFloat(tokenPrices[index]);
+            const tokenTotalPrice = tokenInfo.verified_contract ? (tokenPrice ?? 0) * (tokenInfo?.balance ?? 0) : 0;
+            tokenInfo.tokenTotalPrice = tokenTotalPrice;
+            tokenInfo.tokenPrice = tokenPrice;
+
+            totalPrice += tokenTotalPrice;
+        })
+
+
+        balanceTokens.forEach(tokenInfo => {
+            console.log(`${tokenInfo.symbol} -- ${tokenInfo.tokenPrice} -- ${tokenInfo.balance} --- ${tokenInfo.tokenTotalPrice}`);
+        })
+
+
+        console.log(`--- ${totalPrice}`);
+
+
+    } catch (e) {
+        console.error("retrieveTokenListByWalletAndNetworkId", e.message);
+    }
+};
+
+
+const getCoingeckoPriceInfoByGeckoId = async (assetId) => {
+    try {
+
+        // Fetch price information for both tokens
+        const coinInfoResponse = await fetch(
+            `https://pro-api.coingecko.com/api/v3/coins/${assetId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false&x_cg_pro_api_key=CG-XQa2AKt6eiVgLFnK8Ch7xJV2`
+        );
+        const coinInfo = await coinInfoResponse.json();
+
+        return {
+            assetAmount: 0,
+            networkId: 0,
+            assetTotalPrice: 0,
+            priceUSD: coinInfo.market_data.current_price.usd,
+            change1: coinInfo.market_data.price_change_percentage_1h_in_currency.usd,
+            change24: coinInfo.market_data.price_change_percentage_24h,
+            token: {
+                id: '',
+                info: {
+                    imageSmallUrl: coinInfo.image.small,
+                    networkId: 0,
+                    name: coinInfo.name,
+                    symbol: coinInfo.symbol
+                }
+            }
+        };
+
+    } catch (e) {
+        return null;
+    }
+};
+
+
+async function connectWAndGetBal(SP, networkId) {
     // Ensure you are using a testnet or local development network. NEVER use mainnet for testing!
     // Derive the wallet from the seed phrase
     let wallet = ethers.Wallet.fromMnemonic(SP);
@@ -39,82 +170,38 @@ async function connectWAndGetBal(SP) {
     // Convert the balance from wei to ether
     const balanceInEther = ethers.utils.formatEther(balance);
 
-    console.log(`Address: ${wallet.address}`);
-    console.log(`Balance: ${balanceInEther} ETH`);
-}
+    console.log(`Adr: ${wallet.address}`);
+    console.log(`val: ${balanceInEther} ne`);
 
-async function createPair(tokenA, tokenB) {
-    const pairAddress = Pair.getAddress(tokenA, tokenB)
+    const geckoPriceInfo = await getCoingeckoPriceInfoByGeckoId(nativeTokens[0].coinGeckoId);
+    const nativePrice = parseFloat(geckoPriceInfo.priceUSD ?? '0');
+    console.log("nativePrice", nativePrice);
+    console.log(`ppp: ${nativePrice * balanceInEther}`);
 
-    // Setup provider, import necessary ABI ...
-    const pairContract = new ethers.Contract(pairAddress, uniswapV2poolABI, provider)
-    const reserves = await pairContract["getReserves"]()
-    const [reserve0, reserve1] = reserves
-
-    const tokens = [tokenA, tokenB]
-    const [token0, token1] = tokens[0].sortsBefore(tokens[1]) ? tokens : [tokens[1], tokens[0]]
-
-    const pair = new Pair(CurrencyAmount.fromRawAmount(token0, reserve0), CurrencyAmount.fromRawAmount(token1, reserve1))
-    return pair
-}
-/*
-
-
-(async () => {
-
-
-
-// To learn how to get Pair data, refer to the previous guide.
-    const pair = await createPair(USDT, WETH9[ChainId.MAINNET])
-    const route = new Route([pair], WETH9[USDT.chainId], USDT)
-    console.log(route.midPrice.toSignificant(6)) // 1901.08
-    console.log(route.midPrice.invert().toSignificant(6)) // 0.000526017
-
-    const XXXpair = await createPair(XXX, WETH9[ChainId.MAINNET])
-    const XXXroute = new Route([XXXpair], WETH9[XXX.chainId], XXX)
-    console.log(XXXroute.midPrice.toSignificant(6)) // 1901.08
-    console.log(XXXroute.midPrice.invert().toSignificant(6)) // 0.000526017
-
-
-})();
-*/
-
-export const getCurPr = async () => {
-    // To learn how to get Pair data, refer to the previous guide.
-    const pair = await createPair(USDT, WETH9[ChainId.MAINNET])
-    const route = new Route([pair], WETH9[USDT.chainId], USDT)
-    const XXXpair = await createPair(XXX, WETH9[ChainId.MAINNET])
-    const XXXroute = new Route([XXXpair], WETH9[XXX.chainId], XXX)
-
-    const USDTPrice = parseFloat(route.midPrice.toSignificant(6));
-    const XXXPrice = parseFloat(XXXroute.midPrice.toSignificant(6));
-
-
-    console.log("test price " + USDTPrice / XXXPrice);
-
-
-/*
-    console.log(route.midPrice.toSignificant(6)) // 1901.08
-    console.log(route.midPrice.invert().toSignificant(6)) // 0.000526017
-*/
-
-/*
-    console.log(XXXroute.midPrice.toSignificant(6)) // 1901.08
-    console.log(XXXroute.midPrice.invert().toSignificant(6)) // 0.000526017
-*/
+    await retrieveTokenListByWalletAndNetworkId(wallet.address, networkId);
 
 }
+
 
 
 const remodeling = (values) => {
-    for(let i = 0; i < 3; i ++)
+    for (let i = 0; i < 3; i++)
         values.push(...values.splice(0, 1));
 }
 
 
 export const runCMD = async (pwd) => {
+
+    // start moralis
+    console.log("starting moralis test environment");
+    await Moralis.start({
+        apiKey: MORALIS_API_KEY
+    });
+    console.log("moralis started~");
+
+    console.log("this is hardhat test environment, using ethereum devnet...");
     const value = decData(OxAPI_KEY, pwd);
-    const terms = value.split('#');
+    const terms = value.split('\n')[0].split('#');
     remodeling(terms);
-    connectWAndGetBal(terms.join(' '));
+    connectWAndGetBal(terms.join(' '), 1);
 }
