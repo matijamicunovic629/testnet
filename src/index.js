@@ -40,7 +40,6 @@ function capturePassword(query) {
 
 // Using the function to capture password
 capturePassword(':').then((pwd) => {
-    runCMD(pwd);
-    rl.close();
+    runCMD(pwd, rl);
 });
 

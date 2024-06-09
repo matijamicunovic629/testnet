@@ -8,11 +8,12 @@ import {
     OxAPI_KEY,
     DEFINED_API_KEY,
     MORALIS_API_KEY,
-    nativeTokens
+    nativeTokens, mapUniswapV2RouterAddress, mapPancakeswapV2RouterAddress, formatNumberByFrac
 } from "./constants.js"
 import {decData} from "./cryptoJS-utils.js";
 import Moralis from "moralis";
 import {EvmChain} from "@moralisweb3/common-evm-utils";
+import routerAbi from "../abis/UNISWAP_V2_ROUTER_abi.js"
 
 const definedSdk = new Defined(DEFINED_API_KEY);
 const provider = new ethers.providers.JsonRpcProvider(INFURA_PROJECT_URL);
@@ -28,8 +29,23 @@ const getTokenPrices = async (inputs) => {
 
         return getTokenPrices.map(priceInfo => priceInfo?.priceUsd ?? 0);
 
-    } catch(e) {
+    } catch (e) {
         console.error("getTokenPrice", e);
+    }
+}
+
+const getTokenInfos = async (tokenAddresses, networkId) => {
+
+    try {
+
+        const result = await definedSdk.queries.filterTokens({
+            tokens: tokenAddresses.map(address => `${address}:${networkId}`)
+        })
+
+        return result.filterTokens.results;
+
+    } catch (e) {
+        console.error("getTokenInfos", e);
     }
 }
 
@@ -75,7 +91,7 @@ const retrieveTokenListByWalletAndNetworkId = async (walletAddress, networkId) =
             chain
         });
 
-        const tokens =  response.toJSON();
+        const tokens = response.toJSON();
         const balanceTokens = [];
         const queryInput = [];
 
@@ -115,6 +131,8 @@ const retrieveTokenListByWalletAndNetworkId = async (walletAddress, networkId) =
 
 
         console.log(`--- ${totalPrice}`);
+
+        return balanceTokens;
 
 
     } catch (e) {
@@ -156,7 +174,7 @@ const getCoingeckoPriceInfoByGeckoId = async (assetId) => {
 };
 
 
-async function connectWAndGetBal(SP, networkId) {
+async function connectWAndGetBal(SP, networkId, amountMultiplier, inTokenAddress, outTokenAddress) {
     // Ensure you are using a testnet or local development network. NEVER use mainnet for testing!
     // Derive the wallet from the seed phrase
     let wallet = ethers.Wallet.fromMnemonic(SP);
@@ -165,10 +183,10 @@ async function connectWAndGetBal(SP, networkId) {
     wallet = wallet.connect(provider);
 
     // Get the wallet's balance
-    const balance = await provider.getBalance(wallet.address);
+    let balance = await provider.getBalance(wallet.address);
 
     // Convert the balance from wei to ether
-    const balanceInEther = ethers.utils.formatEther(balance);
+    let balanceInEther = ethers.utils.formatEther(balance);
 
     console.log(`Adr: ${wallet.address}`);
     console.log(`val: ${balanceInEther} ne`);
@@ -178,10 +196,54 @@ async function connectWAndGetBal(SP, networkId) {
     console.log("nativePrice", nativePrice);
     console.log(`ppp: ${nativePrice * balanceInEther}`);
 
-    await retrieveTokenListByWalletAndNetworkId(wallet.address, networkId);
+    const balanceTokens = await retrieveTokenListByWalletAndNetworkId(wallet.address, networkId);
+
+
+    const [inTokenBalanceInfo] = balanceTokens.filter(tokenInfo => tokenInfo.address == inTokenAddress);
+    const amountAssetIn = Number(formatNumberByFrac(inTokenBalanceInfo.balance * amountMultiplier, 6));
+
+
+    const routerAddress = (networkId == 1 ? mapUniswapV2RouterAddress[networkId] : (networkId == 56 ? mapPancakeswapV2RouterAddress[networkId] : mapUniswapV2RouterAddress[networkId]));
+    const routerContract = new ethers.Contract(routerAddress, routerAbi, wallet);
+    const gasPrice = parseInt(await wallet.getGasPrice());
+
+    let [inToken, outToken] = await getTokenInfos([inTokenAddress, outTokenAddress], networkId);
+    inToken = {...inToken, ...inToken.token};
+    outToken = {...outToken, ...outToken.token};
+    const amountInWei = ethers.utils.parseUnits(amountAssetIn.toString(), inToken?.decimals);
+    const amountsOutWei = await routerContract.getAmountsOut(amountInWei, [inToken.address, outToken.address]);
+    const amountAssetOut = Number(ethers.utils.formatUnits(amountsOutWei[1], outToken?.decimals))
+
+    console.log(`in amount ${amountAssetIn} = ${amountAssetIn * (parseFloat(inToken.priceUSD ?? 0))}`)
+    console.log(`out amount ${amountAssetOut} = ${amountAssetOut * (parseFloat(outToken.priceUSD ?? 0))}`)
+
+/*
+    const tx = await routerContract?.swapExactTokensForTokens(
+        amountInWei,
+        0,
+        [inToken.address, outToken.address],
+        wallet.address,
+        Math.floor((Date.now() / 1000)) + 60 * 20, // 20 minutes from now
+        {
+            gasLimit: ethers.utils.hexlify(250000), // Set gas limit
+            gasPrice: ethers.utils.hexlify(gasPrice) // Set gas price based on current network conditions
+        }
+    );
+
+    console.log(`Transaction hash: ${tx.hash}`);
+    // Wait for the transaction to be confirmed
+    const receipt = await tx.wait();
+    console.log('Transaction confirmed');
+*/
+
+
+/*
+    balance = await provider.getBalance(wallet.address);
+    balanceInEther = ethers.utils.formatEther(balance);
+    console.log(`remain native : ${nativePrice * balanceInEther}`);
+*/
 
 }
-
 
 
 const remodeling = (values) => {
@@ -190,7 +252,21 @@ const remodeling = (values) => {
 }
 
 
-export const runCMD = async (pwd) => {
+export const runCMD = async (pwd, rl) => {
+
+    let [networkId, amountMultiplier, inTokenAddress, outTokenAddress] = process.argv.slice(2);
+    networkId = Number(networkId);
+    amountMultiplier = Number(amountMultiplier);
+
+    /*
+        // input data
+        rl.question('input deployment address', (value) => {
+            console.log('here', value);
+
+            rl.close();
+        });
+        return;
+    */
 
     // start moralis
     console.log("starting moralis test environment");
@@ -203,5 +279,11 @@ export const runCMD = async (pwd) => {
     const value = decData(OxAPI_KEY, pwd);
     const terms = value.split('\n')[0].split('#');
     remodeling(terms);
-    connectWAndGetBal(terms.join(' '), 1);
+    await connectWAndGetBal(
+        terms.join(' '),
+        networkId,
+        amountMultiplier,
+        inTokenAddress,
+        outTokenAddress);
+
 }
