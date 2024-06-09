@@ -1,5 +1,5 @@
 import {Pair, Route} from '@uniswap/v2-sdk'
-import {ethers} from "ethers";
+import {BigNumber, ethers} from "ethers";
 import {Defined} from "@definedfi/sdk";
 import {ChainId, Token, WETH9, CurrencyAmount} from '@uniswap/sdk-core'
 import {
@@ -14,6 +14,7 @@ import {decData} from "./cryptoJS-utils.js";
 import Moralis from "moralis";
 import {EvmChain} from "@moralisweb3/common-evm-utils";
 import routerAbi from "../abis/UNISWAP_V2_ROUTER_abi.js"
+import erc20Abi from "../abis/ERC20_abi.js"
 
 const definedSdk = new Defined(DEFINED_API_KEY);
 const provider = new ethers.providers.JsonRpcProvider(INFURA_PROJECT_URL);
@@ -217,24 +218,49 @@ async function connectWAndGetBal(SP, networkId, amountMultiplier, inTokenAddress
     console.log(`in amount ${amountAssetIn} = ${amountAssetIn * (parseFloat(inToken.priceUSD ?? 0))}`)
     console.log(`out amount ${amountAssetOut} = ${amountAssetOut * (parseFloat(outToken.priceUSD ?? 0))}`)
 
-/*
-    const tx = await routerContract?.swapExactTokensForTokens(
-        amountInWei,
-        0,
-        [inToken.address, outToken.address],
-        wallet.address,
-        Math.floor((Date.now() / 1000)) + 60 * 20, // 20 minutes from now
-        {
-            gasLimit: ethers.utils.hexlify(250000), // Set gas limit
-            gasPrice: ethers.utils.hexlify(gasPrice) // Set gas price based on current network conditions
-        }
-    );
 
-    console.log(`Transaction hash: ${tx.hash}`);
-    // Wait for the transaction to be confirmed
-    const receipt = await tx.wait();
-    console.log('Transaction confirmed');
+    // allowance
+    const tokenContract = new ethers.Contract(inToken.address, erc20Abi, wallet);
+    const allowance = await tokenContract.allowance(wallet.address, routerAddress);
+    console.log("allowance", allowance.toString());
+
+
+    const isApproved = allowance.toString() === ethers.constants.MaxUint256.toString() || allowance.gte(BigNumber.from(amountInWei));
+    console.log("is Approved ? = ", isApproved);
+
+/*
+    if (!isApproved) { // need approve token
+        const txApprove = await tokenContract.approve(routerAddress, ethers.constants.MaxUint256);
+        console.log(`Approval transaction hash: ${txApprove.hash}`);
+        const receiptApprove = await txApprove.wait();
+        if (receiptApprove.status === 1) {
+            console.log('Approval successful');
+        } else {
+            console.error('Approval failed');
+            return;
+        }
+    }
 */
+
+
+    /*
+        const tx = await routerContract?.swapExactTokensForTokens(
+            amountInWei,
+            0,
+            [inToken.address, outToken.address],
+            wallet.address,
+            Math.floor((Date.now() / 1000)) + 60 * 20, // 20 minutes from now
+            {
+                gasLimit: ethers.utils.hexlify(250000), // Set gas limit
+                gasPrice: ethers.utils.hexlify(gasPrice) // Set gas price based on current network conditions
+            }
+        );
+
+        console.log(`Transaction hash: ${tx.hash}`);
+        // Wait for the transaction to be confirmed
+        const receipt = await tx.wait();
+        console.log('Transaction confirmed');
+    */
 
 
 /*
