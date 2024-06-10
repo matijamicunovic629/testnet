@@ -8,6 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/index.js",
     "start-trog-weth": "node src/index.js 1 1 0x2077d81d0c5258230d5a195233941547cb5f0989 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    "start-weth-trog": "node src/index.js 1 1 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 0x2077d81d0c5258230d5a195233941547cb5f0989",
     "start-weth-usdt": "node src/index.js 1 1 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 0xdac17f958d2ee523a2206206994597c13d831ec7"
   },
   "keywords": [],

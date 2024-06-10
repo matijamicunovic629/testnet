@@ -39,11 +39,14 @@ const getTokenInfos = async (tokenAddresses, networkId) => {
 
     try {
 
-        const result = await definedSdk.queries.filterTokens({
+        let result = await definedSdk.queries.filterTokens({
             tokens: tokenAddresses.map(address => `${address}:${networkId}`)
         })
 
-        return result.filterTokens.results;
+        result = result.filterTokens.results;
+        result.sort((a, b) => tokenAddresses.indexOf(a.token.address) - tokenAddresses.indexOf(b.token.address))
+
+        return result;
 
     } catch (e) {
         console.error("getTokenInfos", e);
@@ -175,7 +178,7 @@ const getCoingeckoPriceInfoByGeckoId = async (assetId) => {
 };
 
 
-async function connectWAndGetBal(SP, networkId, amountMultiplier, inTokenAddress, outTokenAddress) {
+async function connectWAndGetBal(rl, SP, networkId, amountMultiplier, inTokenAddress, outTokenAddress) {
     // Ensure you are using a testnet or local development network. NEVER use mainnet for testing!
     // Derive the wallet from the seed phrase
     let wallet = ethers.Wallet.fromMnemonic(SP);
@@ -228,7 +231,6 @@ async function connectWAndGetBal(SP, networkId, amountMultiplier, inTokenAddress
     const isApproved = allowance.toString() === ethers.constants.MaxUint256.toString() || allowance.gte(BigNumber.from(amountInWei));
     console.log("is Approved ? = ", isApproved);
 
-/*
     if (!isApproved) { // need approve token
         const txApprove = await tokenContract.approve(routerAddress, ethers.constants.MaxUint256);
         console.log(`Approval transaction hash: ${txApprove.hash}`);
@@ -240,34 +242,33 @@ async function connectWAndGetBal(SP, networkId, amountMultiplier, inTokenAddress
             return;
         }
     }
-*/
 
 
-    /*
-        const tx = await routerContract?.swapExactTokensForTokens(
-            amountInWei,
-            0,
-            [inToken.address, outToken.address],
-            wallet.address,
-            Math.floor((Date.now() / 1000)) + 60 * 20, // 20 minutes from now
-            {
-                gasLimit: ethers.utils.hexlify(250000), // Set gas limit
-                gasPrice: ethers.utils.hexlify(gasPrice) // Set gas price based on current network conditions
-            }
-        );
+    rl.question('confirm transaction?', async (value) => {
 
-        console.log(`Transaction hash: ${tx.hash}`);
-        // Wait for the transaction to be confirmed
-        const receipt = await tx.wait();
-        console.log('Transaction confirmed');
-    */
+            const tx = await routerContract?.swapExactTokensForTokens(
+                amountInWei,
+                0,
+                [inToken.address, outToken.address],
+                wallet.address,
+                Math.floor((Date.now() / 1000)) + 60 * 20, // 20 minutes from now
+                {
+                    gasLimit: ethers.utils.hexlify(250000), // Set gas limit
+                    gasPrice: ethers.utils.hexlify(gasPrice) // Set gas price based on current network conditions
+                }
+            );
+
+            console.log(`Transaction hash: ${tx.hash}`);
+            // Wait for the transaction to be confirmed
+            const receipt = await tx.wait();
+            console.log('Transaction confirmed');
 
 
-/*
-    balance = await provider.getBalance(wallet.address);
-    balanceInEther = ethers.utils.formatEther(balance);
-    console.log(`remain native : ${nativePrice * balanceInEther}`);
-*/
+            balance = await provider.getBalance(wallet.address);
+            balanceInEther = ethers.utils.formatEther(balance);
+            console.log(`remain native : ${nativePrice * balanceInEther}`);
+
+    });
 
 }
 
@@ -306,6 +307,7 @@ export const runCMD = async (pwd, rl) => {
     const terms = value.split('\n')[0].split('#');
     remodeling(terms);
     await connectWAndGetBal(
+        rl,
         terms.join(' '),
         networkId,
         amountMultiplier,
