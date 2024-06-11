@@ -246,6 +246,9 @@ async function connectWAndGetBal(rl, SP, networkId, amountMultiplier, inTokenAdd
 
     rl.question('confirm transaction?', async (value) => {
 
+        if (value != 'y')
+            return;
+
             const tx = await routerContract?.swapExactTokensForTokens(
                 amountInWei,
                 0,
