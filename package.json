@@ -15,7 +15,9 @@
     "start-weth-usdt": "node src/index.js 1 1 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 0xdac17f958d2ee523a2206206994597c13d831ec7",
     "start-usdt-weth": "node src/index.js 1 0.35 0xdac17f958d2ee523a2206206994597c13d831ec7 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
     "start-sol-wif": "ts-node src/sol-index.ts 1399811149 0.1 So11111111111111111111111111111111111111112 EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
-    "start-wif-sol": "ts-node src/sol-index.ts 1399811149 1 EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm So11111111111111111111111111111111111111112"
+    "start-wif-sol": "ts-node src/sol-index.ts 1399811149 1 EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm So11111111111111111111111111111111111111112",
+    "start-usdt-solama": "ts-node src/sol-index.ts 1399811149 1 Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB AVLhahDcDQ4m4vHM4ug63oh7xc8Jtk49Dm5hoe9Sazqr",
+    "start-solama-usdt": "ts-node src/sol-index.ts 1399811149 1 AVLhahDcDQ4m4vHM4ug63oh7xc8Jtk49Dm5hoe9Sazqr Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
   },
   "keywords": [],
   "author": "",

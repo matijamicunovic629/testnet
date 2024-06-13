@@ -15,7 +15,9 @@ import {getSignature} from "../jupiter/utils/getSignature";
 
 const SOL_NETWORK_ID = 1399811149;
 const definedSdk = new Defined(DEFINED_API_KEY);
-export const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
+// export const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
+export const SOLANA_RPC_URL = 'https://wallet.okex.org/fullnode/sol/discover/rpc';
+// export const SOLANA_RPC_URL = 'https://go.getblock.io/7f0cd0e44c2d4ad684de1151c238bae3';
 const connection = new Connection(SOLANA_RPC_URL);
 const jupiterQuoteApi = createJupiterApiClient();
 
